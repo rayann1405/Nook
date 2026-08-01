@@ -1,0 +1,20 @@
+# Nook — Configuration utilisateur (~/.config/nook/config.yaml)
+
+ollama:
+  base_url: "http://localhost:11434"
+  # "auto" = détection automatique du modèle installé (recommandé)
+  model: auto
+  temperature: 0.3
+  max_iterations: 8
+
+ui:
+  hotkey: "ctrl+alt+space"
+  bubble_opacity: 0.42
+  expanded_width: 320
+  expanded_height: 420
+  bubble_size: 22
+  screen_margin: 6
+
+agent:
+  default_cwd: "~"
+  max_file_bytes: 65536
