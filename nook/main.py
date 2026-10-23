@@ -8,8 +8,10 @@ Application de bureau : lancement via le menu Ubuntu ou ~/.local/bin/nook.
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from nook.agent import ReActAgent
@@ -24,19 +26,17 @@ from nook.tools import build_tools
 from nook.ui.main_window import NookWindow
 
 
-def _resolve_model(client: OllamaClient, preferred: str) -> tuple[str, bool]:
+def _resolve_model(client: OllamaClient, preferred: str) -> tuple[str, bool, str | None]:
     """
     Détecte le modèle Ollama disponible.
 
-    Retourne (nom_modèle, en_ligne).
+    Retourne (nom_modèle, en_ligne, erreur_de_détection).
     """
     try:
         model = client.detect_model(preferred or None)
-        return model, True
-    except OllamaUnavailableError:
-        return "", False
-    except NoChatModelError:
-        return "", True
+        return model, True, None
+    except (OllamaUnavailableError, NoChatModelError) as exc:
+        return "", isinstance(exc, NoChatModelError), str(exc)
 
 
 def main() -> int:
@@ -51,13 +51,15 @@ def main() -> int:
     app.setApplicationDisplayName("Nook")
     app.setQuitOnLastWindowClosed(True)
     app.setDesktopFileName("nook")
+    icon_path = Path(__file__).resolve().parent.parent / "assets" / "nook.svg"
+    app.setWindowIcon(QIcon(str(icon_path)))
 
     client = OllamaClient(
         base_url=config.ollama.base_url,
         temperature=config.ollama.temperature,
     )
 
-    model_name, online = _resolve_model(client, config.ollama.model)
+    model_name, online, model_error = _resolve_model(client, config.ollama.model)
     if model_name:
         client.set_model(model_name)
 
@@ -73,15 +75,16 @@ def main() -> int:
         agent,
         model_name=model_name,
         ollama_online=online,
+        model_error=model_error,
     )
     window.show()
 
     def refresh_model() -> None:
-        nonlocal model_name, online
-        model_name, online = _resolve_model(client, config.ollama.model)
+        nonlocal model_name, online, model_error
+        model_name, online, model_error = _resolve_model(client, config.ollama.model)
         if model_name:
             client.set_model(model_name)
-        window.set_model_info(model_name, online)
+        window.set_model_info(model_name, online, model_error)
 
     # Re-détection périodique (Ollama démarré après l'app, nouveau modèle pullé)
     refresh_timer = QTimer()

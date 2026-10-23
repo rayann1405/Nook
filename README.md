@@ -90,6 +90,8 @@ Les modèles d'embedding (`nomic-embed`, etc.) sont ignorés.
 
 Re-détection automatique toutes les 15 secondes (si Ollama démarre après l'app).
 
+Si Nook affiche **Ollama arrêté**, démarrez le service (`ollama serve`) puis patientez jusqu'à 15 secondes. Si aucun modèle n'est trouvé, installez-en un, par exemple avec `ollama pull llama3.2`.
+
 ---
 
 ## Interface discrète

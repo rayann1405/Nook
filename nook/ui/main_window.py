@@ -92,6 +92,7 @@ class NookWindow(QWidget):
         agent: ReActAgent,
         model_name: str = "",
         ollama_online: bool = True,
+        model_error: str | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -99,6 +100,7 @@ class NookWindow(QWidget):
         self.agent = agent
         self._model_name = model_name
         self._ollama_online = ollama_online
+        self._model_error = model_error
         self._expanded = False
         self._visible = True
         self._worker: AgentWorker | None = None
@@ -295,8 +297,10 @@ class NookWindow(QWidget):
 
     def _update_status_label(self) -> None:
         if not self._ollama_online:
-            self.status_label.setText("hors ligne")
-            self.bubble_frame.setToolTip("Nook — Ollama hors ligne")
+            self.status_label.setText("Ollama arrêté")
+            self.bubble_frame.setToolTip(
+                f"Nook — {self._model_error or 'Ollama est injoignable. Lancez ollama serve.'}"
+            )
             return
         if self._model_name:
             short = self._model_name.split(":")[0]
@@ -305,12 +309,15 @@ class NookWindow(QWidget):
             self.status_label.setText(short)
             self.bubble_frame.setToolTip(f"Nook — {self._model_name}")
         else:
-            self.status_label.setText("")
-            self.bubble_frame.setToolTip("Nook")
+            self.status_label.setText("modèle absent")
+            self.bubble_frame.setToolTip(
+                f"Nook — {self._model_error or 'Aucun modèle de chat trouvé. Lancez ollama pull llama3.2.'}"
+            )
 
-    def set_model_info(self, model: str, online: bool) -> None:
+    def set_model_info(self, model: str, online: bool, error: str | None = None) -> None:
         self._model_name = model
         self._ollama_online = online
+        self._model_error = error
         self._update_status_label()
 
     def _send_message(self) -> None:
