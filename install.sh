@@ -9,6 +9,10 @@ DESKTOP_DIR="${HOME}/.local/share/applications"
 CONFIG_DIR="${HOME}/.config/nook"
 ICON_DIR="${HOME}/.local/share/icons/hicolor/scalable/apps"
 AUTOSTART_DIR="${HOME}/.config/autostart"
+LEGACY_BIN="${BIN_DIR}/daemonai"
+LEGACY_DESKTOP="${DESKTOP_DIR}/daemonai.desktop"
+LEGACY_AUTOSTART="${AUTOSTART_DIR}/daemonai.desktop"
+LEGACY_ICON="${ICON_DIR}/daemonai.svg"
 
 echo "==> Installation de Nook"
 
@@ -26,6 +30,10 @@ if ((${#MISSING[@]})); then
 fi
 
 mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$DESKTOP_DIR" "$CONFIG_DIR" "$ICON_DIR"
+
+# Remove launchers from the previous DaemonAI name so the menu cannot start
+# the obsolete installation after upgrading to Nook.
+rm -f "$LEGACY_BIN" "$LEGACY_DESKTOP" "$LEGACY_AUTOSTART" "$LEGACY_ICON"
 
 echo "    Copie des fichiers vers $INSTALL_ROOT"
 rsync -a --delete \
@@ -87,6 +95,11 @@ Categories=Utility;Development;
 Keywords=AI;Ollama;Assistant;Local;
 EOF
 chmod +x "$DESKTOP_DIR/nook.desktop"
+
+# Refresh the per-user hicolor cache so GNOME can resolve Icon=nook.
+if command -v gtk-update-icon-cache &>/dev/null; then
+  gtk-update-icon-cache --force --ignore-theme-index "$HOME/.local/share/icons/hicolor"
+fi
 
 if [[ ! -f "$CONFIG_DIR/config.yaml" ]]; then
   cp "$INSTALL_ROOT/config.example.yaml" "$CONFIG_DIR/config.yaml"
