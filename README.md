@@ -1,5 +1,8 @@
 # Nook
 
+Nook is a local-first desktop AI assistant for Ubuntu, powered by Ollama.
+It combines a lightweight PyQt6 interface with a ReAct agent to interact with local language models.
+
 Assistant virtuel de bureau **100 % local** pour Ubuntu. Interface ultra-discrète en bas à droite, connectée à [Ollama](http://localhost:11434). **Détection automatique** du modèle installé sur la machine.
 
 ## Stack technique
