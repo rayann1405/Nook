@@ -1,5 +1,18 @@
 # Nook
 
+## Before the hackathon
+
+- A compact PyQt6 desktop interface for Ubuntu.
+- A basic ReAct agent loop for using local tools.
+- Automatic discovery of an installed Ollama chat model.
+- An Ubuntu installer and desktop launcher.
+
+## Built during the hackathon (Oct 26 – Nov 4)
+
+See the [Git comparison with the pre-hackathon baseline](https://github.com/rayann1405/Nook/compare/pre-hackathon...main).
+
+- No post-baseline changes have been merged yet. This list will be updated as new features are completed.
+
 Nook is a local-first desktop AI assistant for Ubuntu, powered by Ollama.
 It combines a lightweight PyQt6 interface with a ReAct agent to interact with local language models.
 
