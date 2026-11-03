@@ -466,6 +466,9 @@ class NookWindow(QWidget):
                 else ""
             )
             self.status_label.setText(f"{provider} · {model}{suffix}")
+        elif self.agent.router.mode == "cloud" and not self.agent.router.cloud_enabled:
+            local = self._model_name or "unavailable"
+            self.status_label.setText(f"Cloud off · Local {local}")
         elif (
             self.agent.router.mode == "cloud"
             and not self.agent.router.meta.configured
