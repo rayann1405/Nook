@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 
@@ -44,6 +44,9 @@ def is_chat_model(name: str) -> bool:
     return not any(hint in lower for hint in _EMBED_HINTS)
 
 
+TokenCallback = Callable[[str], None]
+
+
 class OllamaClient:
     """Encapsule les appels à l'API REST d'Ollama (compatible tout modèle)."""
 
@@ -51,7 +54,9 @@ class OllamaClient:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.temperature = temperature
-        self._client = httpx.Client(timeout=300.0)
+        self._client = httpx.Client(
+            timeout=httpx.Timeout(connect=3.0, read=180.0, write=10.0, pool=3.0)
+        )
 
     def close(self) -> None:
         self._client.close()
@@ -153,6 +158,8 @@ class OllamaClient:
         messages: list[dict[str, str]],
         *,
         stream: bool = False,
+        on_token: TokenCallback | None = None,
+        num_ctx: int = 2048,
     ) -> OllamaResponse:
         if not self.model:
             raise OllamaError("Aucun modèle sélectionné.")
@@ -161,11 +168,16 @@ class OllamaClient:
             "model": self.model,
             "messages": messages,
             "stream": stream,
-            "options": {"temperature": self.temperature},
+            "options": {"temperature": self.temperature, "num_ctx": num_ctx},
         }
+        if stream:
+            return self._stream_chat(body, on_token)
+
         response = self._client.post(f"{self.base_url}/api/chat", json=body)
         response.raise_for_status()
         data = response.json()
+        if error := data.get("error"):
+            raise OllamaError(str(error))
         message = data.get("message", {})
         content = message.get("content", "")
         return OllamaResponse(
@@ -173,3 +185,28 @@ class OllamaClient:
             model=data.get("model", self.model),
             done=bool(data.get("done", True)),
         )
+
+    def _stream_chat(
+        self,
+        body: dict[str, Any],
+        on_token: TokenCallback | None,
+    ) -> OllamaResponse:
+        content: list[str] = []
+        model = self.model
+        done = False
+        with self._client.stream("POST", f"{self.base_url}/api/chat", json=body) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                data = httpx.Response(200, text=line).json()
+                if error := data.get("error"):
+                    raise OllamaError(str(error))
+                model = data.get("model", model)
+                chunk = data.get("message", {}).get("content", "")
+                if chunk:
+                    content.append(chunk)
+                    if on_token:
+                        on_token(chunk)
+                done = bool(data.get("done", False))
+        return OllamaResponse("".join(content).strip(), model, done)

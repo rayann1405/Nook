@@ -37,17 +37,33 @@ def _expand_path(value: str) -> str:
 @dataclass
 class OllamaConfig:
     base_url: str = "http://localhost:11434"
-    model: str = ""  # vide = détection automatique
+    model: str = "auto"
     temperature: float = 0.3
     max_iterations: int = 8
+    num_ctx: int = 2048
+
+
+@dataclass
+class RouterConfig:
+    mode: str = "auto"
+    cloud_enabled: bool = True
+    max_cloud_calls: int = 5
+    low_memory_threshold_gb: float = 3.0
+
+
+@dataclass
+class MetaConfig:
+    base_url: str = "https://api.meta.ai/v1"
+    model: str = "muse-spark-1.3"
 
 
 @dataclass
 class UIConfig:
+    theme: str = "dark"
     hotkey: str = "ctrl+alt+space"
     bubble_opacity: float = 0.42
-    expanded_width: int = 320
-    expanded_height: int = 420
+    expanded_width: int = 380
+    expanded_height: int = 520
     bubble_size: int = 22
     screen_margin: int = 6
 
@@ -61,6 +77,8 @@ class AgentConfig:
 @dataclass
 class AppConfig:
     ollama: OllamaConfig = field(default_factory=OllamaConfig)
+    router: RouterConfig = field(default_factory=RouterConfig)
+    meta: MetaConfig = field(default_factory=MetaConfig)
     ui: UIConfig = field(default_factory=UIConfig)
     agent: AgentConfig = field(default_factory=AgentConfig)
 
@@ -96,6 +114,8 @@ def ensure_user_config() -> Path:
 
 def _build_from_dict(data: dict[str, Any]) -> AppConfig:
     ollama_data = data.get("ollama", {})
+    router_data = data.get("router", {})
+    meta_data = data.get("meta", {})
     ui_data = data.get("ui", {})
     agent_data = data.get("agent", {})
 
@@ -113,12 +133,26 @@ def _build_from_dict(data: dict[str, Any]) -> AppConfig:
             model=raw_model,
             temperature=float(ollama_data.get("temperature", 0.3)),
             max_iterations=int(ollama_data.get("max_iterations", 8)),
+            num_ctx=max(2048, min(4096, int(ollama_data.get("num_ctx", 2048)))),
+        ),
+        router=RouterConfig(
+            mode=str(router_data.get("mode", "auto")).lower().strip(),
+            cloud_enabled=bool(router_data.get("cloud_enabled", True)),
+            max_cloud_calls=max(0, int(router_data.get("max_cloud_calls", 5))),
+            low_memory_threshold_gb=float(
+                router_data.get("low_memory_threshold_gb", 3.0)
+            ),
+        ),
+        meta=MetaConfig(
+            base_url=str(meta_data.get("base_url", "https://api.meta.ai/v1")).rstrip("/"),
+            model=str(meta_data.get("model", "muse-spark-1.3")).strip(),
         ),
         ui=UIConfig(
+            theme=str(ui_data.get("theme", "dark")).lower().strip(),
             hotkey=str(ui_data.get("hotkey", "ctrl+alt+space")).lower().strip(),
             bubble_opacity=float(ui_data.get("bubble_opacity", 0.42)),
-            expanded_width=int(ui_data.get("expanded_width", 320)),
-            expanded_height=int(ui_data.get("expanded_height", 420)),
+            expanded_width=int(ui_data.get("expanded_width", 380)),
+            expanded_height=int(ui_data.get("expanded_height", 520)),
             bubble_size=int(ui_data.get("bubble_size", 22)),
             screen_margin=int(ui_data.get("screen_margin", 6)),
         ),
@@ -138,6 +172,18 @@ def _apply_env(config: AppConfig) -> AppConfig:
         config.ollama.temperature = float(temp)
     if max_iter := os.environ.get("NOOK_MAX_ITERATIONS"):
         config.ollama.max_iterations = int(max_iter)
+    if num_ctx := os.environ.get("NOOK_NUM_CTX"):
+        config.ollama.num_ctx = max(2048, min(4096, int(num_ctx)))
+    if mode := os.environ.get("NOOK_MODE"):
+        config.router.mode = mode.lower().strip()
+    if cloud_enabled := os.environ.get("NOOK_CLOUD_ENABLED"):
+        config.router.cloud_enabled = cloud_enabled.lower().strip() in {"1", "true", "yes", "on"}
+    if max_cloud_calls := os.environ.get("NOOK_MAX_CLOUD_CALLS"):
+        config.router.max_cloud_calls = max(0, int(max_cloud_calls))
+    if base_url := os.environ.get("META_API_BASE_URL"):
+        config.meta.base_url = base_url.rstrip("/")
+    if model := os.environ.get("META_MODEL"):
+        config.meta.model = model.strip()
     if hotkey := os.environ.get("NOOK_HOTKEY"):
         config.ui.hotkey = hotkey.lower().strip()
     if cwd := os.environ.get("NOOK_DEFAULT_CWD"):
