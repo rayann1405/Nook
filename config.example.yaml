@@ -17,15 +17,18 @@ router:
 meta:
   base_url: "https://api.meta.ai/v1"
   model: "muse-spark-1.3"
+  # Renseignez la clé ici ou dans un fichier .env (META_API_KEY=...).
+  # Le fichier ~/.config/nook/config.yaml est créé en chmod 600.
+  api_key: ""
 
 ui:
-  theme: dark
+  language: fr
   hotkey: "ctrl+alt+space"
-  bubble_opacity: 0.42
-  expanded_width: 380
-  expanded_height: 520
-  bubble_size: 22
-  screen_margin: 6
+  bubble_opacity: 0.85
+  expanded_width: 420
+  expanded_height: 600
+  bubble_size: 44
+  screen_margin: 8
 
 agent:
   default_cwd: "~"

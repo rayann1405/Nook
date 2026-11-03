@@ -23,7 +23,7 @@ introduce each feature or file.
 - Add `explain_error` and dry-run-first `organize_files`; confirm destructive
   shell commands and file moves, and avoid overwriting existing files.
 - Add live streaming, provider/model status, agent activity, confirmation
-  dialogs, settings, and light/dark themes to the PyQt interface.
+  dialogs, settings, a dark theme, and English/French UI language selection.
 - Keep Ollama discovery off the UI thread and report startup/Wayland issues.
 - Add agent and tool tests; replace the obsolete model-status test with router
   status coverage.

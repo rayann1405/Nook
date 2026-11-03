@@ -15,6 +15,8 @@ from typing import Any
 
 import yaml
 
+from nook.i18n import normalize_language
+
 PACKAGE_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -27,11 +29,64 @@ def install_root() -> Path:
 
 USER_CONFIG_DIR = Path.home() / ".config" / "nook"
 USER_CONFIG_PATH = USER_CONFIG_DIR / "config.yaml"
+USER_ENV_PATH = USER_CONFIG_DIR / ".env"
 BUNDLED_EXAMPLE = install_root() / "config.example.yaml"
 
 
 def _expand_path(value: str) -> str:
     return str(Path(value).expanduser().resolve())
+
+
+def _dotenv_paths() -> list[Path]:
+    """Fichiers .env consultés, du plus prioritaire au moins prioritaire."""
+    paths: list[Path] = []
+    if explicit := os.environ.get("NOOK_ENV_FILE"):
+        paths.append(Path(explicit).expanduser())
+    paths.extend([install_root() / ".env", Path.cwd() / ".env", USER_ENV_PATH])
+    seen: set[Path] = set()
+    unique: list[Path] = []
+    for path in paths:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            continue
+        if resolved not in seen:
+            seen.add(resolved)
+            unique.append(resolved)
+    return unique
+
+
+def load_dotenv() -> None:
+    """
+    Charge les fichiers .env dans os.environ.
+
+    Les variables déjà définies (shell, système, tests) gardent la priorité :
+    .env ne sert qu'à compléter l'environnement. C'est ce qui permet à
+    ``META_API_KEY`` placé dans .env d'être réellement pris en compte.
+    """
+    for path in _dotenv_paths():
+        if not path.is_file():
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if line.startswith("export "):
+                line = line[len("export ") :].lstrip()
+            key, separator, value = line.partition("=")
+            if not separator:
+                continue
+            key = key.strip()
+            if not key:
+                continue
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+                value = value[1:-1]
+            os.environ.setdefault(key, value)
 
 
 @dataclass
@@ -55,17 +110,18 @@ class RouterConfig:
 class MetaConfig:
     base_url: str = "https://api.meta.ai/v1"
     model: str = "muse-spark-1.3"
+    api_key: str = ""
 
 
 @dataclass
 class UIConfig:
-    theme: str = "dark"
+    language: str = "fr"
     hotkey: str = "ctrl+alt+space"
-    bubble_opacity: float = 0.42
-    expanded_width: int = 380
-    expanded_height: int = 520
-    bubble_size: int = 22
-    screen_margin: int = 6
+    bubble_opacity: float = 0.85
+    expanded_width: int = 420
+    expanded_height: int = 600
+    bubble_size: int = 44
+    screen_margin: int = 8
 
 
 @dataclass
@@ -146,15 +202,24 @@ def _build_from_dict(data: dict[str, Any]) -> AppConfig:
         meta=MetaConfig(
             base_url=str(meta_data.get("base_url", "https://api.meta.ai/v1")).rstrip("/"),
             model=str(meta_data.get("model", "muse-spark-1.3")).strip(),
+            api_key=str(meta_data.get("api_key", "") or "").strip(),
         ),
         ui=UIConfig(
-            theme=str(ui_data.get("theme", "dark")).lower().strip(),
+            language=normalize_language(
+                str(ui_data.get("language", "fr") or "fr")
+            ),
             hotkey=str(ui_data.get("hotkey", "ctrl+alt+space")).lower().strip(),
-            bubble_opacity=float(ui_data.get("bubble_opacity", 0.42)),
-            expanded_width=int(ui_data.get("expanded_width", 380)),
-            expanded_height=int(ui_data.get("expanded_height", 520)),
-            bubble_size=int(ui_data.get("bubble_size", 22)),
-            screen_margin=int(ui_data.get("screen_margin", 6)),
+            bubble_opacity=max(
+                0.6, min(1.0, float(ui_data.get("bubble_opacity", 0.85)))
+            ),
+            expanded_width=max(
+                400, min(760, int(ui_data.get("expanded_width", 420)))
+            ),
+            expanded_height=max(
+                560, min(1000, int(ui_data.get("expanded_height", 600)))
+            ),
+            bubble_size=max(40, min(72, int(ui_data.get("bubble_size", 44)))),
+            screen_margin=max(0, min(64, int(ui_data.get("screen_margin", 8)))),
         ),
         agent=AgentConfig(
             default_cwd=default_cwd,
@@ -184,8 +249,12 @@ def _apply_env(config: AppConfig) -> AppConfig:
         config.meta.base_url = base_url.rstrip("/")
     if model := os.environ.get("META_MODEL"):
         config.meta.model = model.strip()
+    if api_key := (os.environ.get("META_API_KEY") or os.environ.get("MODEL_API_KEY")):
+        config.meta.api_key = api_key.strip()
     if hotkey := os.environ.get("NOOK_HOTKEY"):
         config.ui.hotkey = hotkey.lower().strip()
+    if language := os.environ.get("NOOK_LANGUAGE"):
+        config.ui.language = normalize_language(language)
     if cwd := os.environ.get("NOOK_DEFAULT_CWD"):
         config.agent.default_cwd = _expand_path(cwd)
     if max_bytes := os.environ.get("NOOK_MAX_FILE_BYTES"):
@@ -194,6 +263,53 @@ def _apply_env(config: AppConfig) -> AppConfig:
 
 
 def load_config(config_path: Path | None = None) -> AppConfig:
+    load_dotenv()
     path = config_path or ensure_user_config()
     config = _build_from_dict(_load_yaml(path))
     return _apply_env(config)
+
+
+def save_config(config: AppConfig, config_path: Path | None = None) -> Path:
+    """Écrit la configuration utilisateur (dont la clé Meta) et la protège."""
+    path = config_path or USER_CONFIG_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "ollama": {
+            "base_url": config.ollama.base_url,
+            "model": config.ollama.model or "auto",
+            "temperature": config.ollama.temperature,
+            "max_iterations": config.ollama.max_iterations,
+            "num_ctx": config.ollama.num_ctx,
+        },
+        "router": {
+            "mode": config.router.mode,
+            "cloud_enabled": config.router.cloud_enabled,
+            "max_cloud_calls": config.router.max_cloud_calls,
+            "low_memory_threshold_gb": config.router.low_memory_threshold_gb,
+        },
+        "meta": {
+            "base_url": config.meta.base_url,
+            "model": config.meta.model,
+            "api_key": config.meta.api_key,
+        },
+        "ui": {
+            "language": config.ui.language,
+            "hotkey": config.ui.hotkey,
+            "bubble_opacity": config.ui.bubble_opacity,
+            "expanded_width": config.ui.expanded_width,
+            "expanded_height": config.ui.expanded_height,
+            "bubble_size": config.ui.bubble_size,
+            "screen_margin": config.ui.screen_margin,
+        },
+        "agent": {
+            "default_cwd": config.agent.default_cwd,
+            "max_file_bytes": config.agent.max_file_bytes,
+        },
+    }
+    with path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(data, handle, sort_keys=False, allow_unicode=True)
+    try:
+        path.chmod(0o600)
+    except OSError:
+        pass
+    return path

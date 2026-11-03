@@ -24,7 +24,10 @@ See the [comparison with the pre-hackathon baseline](https://github.com/rayann14
 - Optional Meta Model API chat completions with token streaming and no
   automatic retry loop.
 - Streaming assistant replies, live provider/model status, visible agent
-  activity, collapsible steps, mode/model controls, and light/dark themes.
+  activity, collapsible steps, mode/model controls, a dark-only interface, and
+  a persistent English/French language selector.
+- A redesigned chat panel with styled message bubbles, inline settings, an
+  API-key field that validates the key, and automatic `.env` loading.
 - Offline-friendly `explain_error` and dry-run-first `organize_files` tools.
 - Explicit confirmation before potentially destructive shell commands or
   file moves; existing destination files are never overwritten.
@@ -80,14 +83,17 @@ python -m nook
 
 - Open Nook from the application menu or run `nook`.
 - Click the compact Nook bubble to open the chat. The default global shortcut
-  is `Ctrl+Alt+Space`.
-- Choose **Auto**, **Local**, or **Cloud** in the settings row. Mark a request
-  **Hard task** to allow Auto mode to try the cloud provider first.
-- Select an installed local model or **Automatic**. The status badge shows the
-  active provider and model; cloud usage also shows the session count.
+  is `Ctrl+Alt+Space`; press `Escape` to collapse the panel.
+- Open **Settings / Réglages** to choose **Auto**, **Local**, or **Cloud**, pick
+  a local model, toggle cloud/hard-task routing, and choose English or French.
+  The interface uses a dark theme.
+- Paste the Meta API key in **Réglages → Meta API** and click **Enregistrer**.
+  Nook validates the key in the background and stores it in
+  `~/.config/nook/config.yaml` with `chmod 600`.
+- The status pill shows the active provider and model; cloud usage also shows
+  the session count. New conversations can be started with **Nouveau**.
 - Review agent activity in the collapsible steps panel. Potentially destructive
   shell commands and file moves require explicit confirmation.
-- Choose a light or dark theme in the settings panel.
 
 On Wayland, desktop policies may prevent global shortcuts or always-on-top
 behavior. Nook displays a notice and remains available from the application menu.
@@ -111,23 +117,27 @@ router:
 meta:
   base_url: "https://api.meta.ai/v1"
   model: "muse-spark-1.3"
+  api_key: ""
 
 ui:
-  theme: dark
+  language: fr # fr or en
 ```
 
-For optional cloud access, set `META_API_KEY` in Nook's environment, for
-example before launching from a terminal:
+For optional cloud access you can either paste the key in **Réglages** or put it
+in a `.env` file. Nook now loads `.env` automatically from, in order,
+`$NOOK_ENV_FILE`, the install directory, the current directory, and
+`~/.config/nook/.env`. Variables already present in the environment always win:
 
 ```bash
-export META_API_KEY="your-key"
-nook
+# .env
+META_API_KEY="your-key"
+META_API_BASE_URL="https://api.meta.ai/v1"
+META_MODEL="muse-spark-1.3"
 ```
 
-`META_API_BASE_URL` and `META_MODEL` can override the endpoint and model. The
-`.env.example` file documents these variables; Nook does not automatically
-load `.env` files. Shell commands run by the agent do not inherit Meta API key
-environment variables.
+`META_API_KEY`, `META_API_BASE_URL`, and `META_MODEL` can also be exported in the
+shell before launching. Shell commands run by the agent do not inherit Meta API
+key environment variables.
 
 The Meta client uses the configured OpenAI-compatible
 `POST /chat/completions` interface with Bearer authentication. If your Meta

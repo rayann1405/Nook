@@ -52,6 +52,7 @@ rsync -a --delete \
   "$SOURCE_DIR/requirements.txt" \
   "$SOURCE_DIR/pyproject.toml" \
   "$SOURCE_DIR/config.example.yaml" \
+  "$SOURCE_DIR/.env.example" \
   "$SOURCE_DIR/assets" \
   "$INSTALL_ROOT/"
 

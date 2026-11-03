@@ -18,6 +18,7 @@ from PyQt6.QtWidgets import QApplication
 from nook.agent import ReActAgent
 from nook.config import load_config
 from nook.hotkey import GlobalHotkeyManager
+from nook.i18n import tr
 from nook.meta_client import MetaModelClient
 from nook.ollama_client import OllamaClient
 from nook.router import ModelRouter
@@ -44,7 +45,11 @@ def main() -> int:
         base_url=config.ollama.base_url,
         temperature=config.ollama.temperature,
     )
-    meta = MetaModelClient(config.meta.base_url, config.meta.model)
+    meta = MetaModelClient(
+        config.meta.base_url,
+        config.meta.model,
+        api_key=config.meta.api_key,
+    )
     router = ModelRouter(
         ollama,
         meta,
@@ -60,6 +65,7 @@ def main() -> int:
         router=router,
         tools=tools,
         max_iterations=config.ollama.max_iterations,
+        language=config.ui.language,
     )
 
     window = NookWindow(
@@ -67,15 +73,12 @@ def main() -> int:
         agent,
         model_name="",
         ollama_online=False,
-        model_error="Checking local Ollama…",
+        model_error=tr(config.ui.language, "checking_ollama"),
     )
     window.show()
     window.refresh_local_model()
     if os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland":
-        window.show_notice(
-            "Wayland may limit global shortcuts and always-on-top behavior. "
-            "Use the Nook app menu if the shortcut does not work."
-        )
+        window.show_notice(tr(config.ui.language, "wayland_notice"))
 
     # Re-détection périodique (Ollama démarré après l'app, nouveau modèle pullé)
     refresh_timer = QTimer()
@@ -91,7 +94,7 @@ def main() -> int:
         hotkey_manager.start()
     except Exception as e:
         window.show_notice(
-            f"Global shortcut unavailable ({e}). You can still open Nook from the app menu."
+            tr(config.ui.language, "hotkey_unavailable", error=e)
         )
 
     exit_code = app.exec()
