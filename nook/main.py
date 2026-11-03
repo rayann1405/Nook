@@ -7,6 +7,7 @@ Application de bureau : lancement via le menu Ubuntu ou ~/.local/bin/nook.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -17,26 +18,11 @@ from PyQt6.QtWidgets import QApplication
 from nook.agent import ReActAgent
 from nook.config import load_config
 from nook.hotkey import GlobalHotkeyManager
-from nook.ollama_client import (
-    NoChatModelError,
-    OllamaClient,
-    OllamaUnavailableError,
-)
+from nook.meta_client import MetaModelClient
+from nook.ollama_client import OllamaClient
+from nook.router import ModelRouter
 from nook.tools import build_tools
 from nook.ui.main_window import NookWindow
-
-
-def _resolve_model(client: OllamaClient, preferred: str) -> tuple[str, bool, str | None]:
-    """
-    Détecte le modèle Ollama disponible.
-
-    Retourne (nom_modèle, en_ligne, erreur_de_détection).
-    """
-    try:
-        model = client.detect_model(preferred or None)
-        return model, True, None
-    except (OllamaUnavailableError, NoChatModelError) as exc:
-        return "", isinstance(exc, NoChatModelError), str(exc)
 
 
 def main() -> int:
@@ -54,18 +40,24 @@ def main() -> int:
     icon_path = Path(__file__).resolve().parent.parent / "assets" / "nook.svg"
     app.setWindowIcon(QIcon(str(icon_path)))
 
-    client = OllamaClient(
+    ollama = OllamaClient(
         base_url=config.ollama.base_url,
         temperature=config.ollama.temperature,
     )
-
-    model_name, online, model_error = _resolve_model(client, config.ollama.model)
-    if model_name:
-        client.set_model(model_name)
-
+    meta = MetaModelClient(config.meta.base_url, config.meta.model)
+    router = ModelRouter(
+        ollama,
+        meta,
+        mode=config.router.mode,
+        cloud_enabled=config.router.cloud_enabled,
+        max_cloud_calls=config.router.max_cloud_calls,
+        preferred_model=config.ollama.model,
+        num_ctx=config.ollama.num_ctx,
+        low_memory_threshold_gb=config.router.low_memory_threshold_gb,
+    )
     tools = build_tools(config.agent.default_cwd, config.agent.max_file_bytes)
     agent = ReActAgent(
-        client=client,
+        router=router,
         tools=tools,
         max_iterations=config.ollama.max_iterations,
     )
@@ -73,23 +65,22 @@ def main() -> int:
     window = NookWindow(
         config,
         agent,
-        model_name=model_name,
-        ollama_online=online,
-        model_error=model_error,
+        model_name="",
+        ollama_online=False,
+        model_error="Checking local Ollama…",
     )
     window.show()
-
-    def refresh_model() -> None:
-        nonlocal model_name, online, model_error
-        model_name, online, model_error = _resolve_model(client, config.ollama.model)
-        if model_name:
-            client.set_model(model_name)
-        window.set_model_info(model_name, online, model_error)
+    window.refresh_local_model()
+    if os.environ.get("XDG_SESSION_TYPE", "").lower() == "wayland":
+        window.show_notice(
+            "Wayland may limit global shortcuts and always-on-top behavior. "
+            "Use the Nook app menu if the shortcut does not work."
+        )
 
     # Re-détection périodique (Ollama démarré après l'app, nouveau modèle pullé)
     refresh_timer = QTimer()
     refresh_timer.setInterval(15000)
-    refresh_timer.timeout.connect(refresh_model)
+    refresh_timer.timeout.connect(window.refresh_local_model)
     refresh_timer.start()
 
     def on_hotkey() -> None:
@@ -99,14 +90,17 @@ def main() -> int:
     try:
         hotkey_manager.start()
     except Exception as e:
-        print(f"Warning: Global hotkey disabled ({e})")
+        window.show_notice(
+            f"Global shortcut unavailable ({e}). You can still open Nook from the app menu."
+        )
 
     exit_code = app.exec()
 
     refresh_timer.stop()
     hotkey_manager.stop()
     window.shutdown()
-    client.close()
+    ollama.close()
+    meta.close()
     return exit_code
 
 

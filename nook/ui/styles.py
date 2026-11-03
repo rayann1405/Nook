@@ -113,4 +113,55 @@ QScrollBar::handle:vertical {
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
 }
+
+QComboBox, QCheckBox {
+    color: rgba(220, 220, 228, 235);
+    font-size: 10px;
+    spacing: 5px;
+}
+
+QComboBox {
+    background-color: rgba(24, 24, 30, 210);
+    border: 1px solid rgba(255, 255, 255, 22);
+    border-radius: 6px;
+    padding: 4px 6px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #1c1c24;
+    color: #e6e6eb;
+    selection-background-color: #465f96;
+}
+
+QLabel#ActivityLabel, QLabel#AgentStepLabel {
+    color: rgba(185, 190, 205, 220);
+    font-size: 10px;
+}
+
+QToolButton {
+    color: rgba(180, 190, 215, 220);
+    background: transparent;
+    border: none;
+    text-align: left;
+}
+"""
+
+LIGHT_THEME = """
+QWidget#NookRoot { background-color: transparent; }
+QFrame#BubbleFrame { background-color: rgba(245, 247, 252, 235); border: 1px solid #ccd3e0; border-radius: 7px; }
+QFrame#BubbleDot { background-color: #4768a8; border-radius: 2px; }
+QFrame#PanelFrame { background-color: rgba(250, 251, 254, 250); border: 1px solid #d5dbe6; border-radius: 10px; }
+QLabel#TitleLabel { color: #202a3a; font-size: 12px; font-weight: 600; }
+QLabel#StatusLabel { color: #375789; font-size: 10px; font-weight: 600; }
+QLabel#MessageUser { color: #24395c; font-size: 11px; padding: 6px 8px; background-color: #e4edfc; border-radius: 6px; }
+QLabel#MessageAssistant { color: #262b34; font-size: 11px; padding: 6px 8px; background-color: #eef0f4; border-radius: 6px; }
+QLabel#MessageSystem, QLabel#ActivityLabel, QLabel#AgentStepLabel { color: #596477; font-size: 10px; }
+QLineEdit#ChatInput, QComboBox { background-color: #fff; color: #202631; border: 1px solid #ccd3df; border-radius: 7px; padding: 5px 7px; font-size: 10px; }
+QComboBox QAbstractItemView { background-color: #fff; color: #202631; selection-background-color: #dce8fb; }
+QCheckBox, QToolButton { color: #384354; font-size: 10px; }
+QPushButton#SendButton { background-color: #4768a8; color: #fff; border: none; border-radius: 7px; padding: 6px 10px; }
+QPushButton#IconButton { background: transparent; color: #596477; border: none; font-size: 13px; }
+QScrollBar:vertical { background: transparent; width: 6px; margin: 1px; }
+QScrollBar::handle:vertical { background: #c0c8d6; border-radius: 3px; min-height: 20px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }
 """
