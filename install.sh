@@ -18,7 +18,7 @@ echo "==> Installation de Nook"
 
 # Dépendances système minimales
 MISSING=()
-for pkg in python3 python3-venv python3-pip libxcb-cursor0 libxkbcommon-x11-0; do
+for pkg in python3 python3-venv python3-pip curl rsync libxcb-cursor0 libxkbcommon-x11-0 libegl1 python3-xlib; do
   if ! dpkg -s "$pkg" &>/dev/null; then
     MISSING+=("$pkg")
   fi
@@ -26,8 +26,15 @@ done
 if ((${#MISSING[@]})); then
   echo "    Paquets manquants : ${MISSING[*]}"
   echo "    Exécutez : sudo apt install -y python3 python3-venv python3-pip \\"
-  echo "               libxcb-cursor0 libxkbcommon-x11-0 libegl1 python3-xlib"
+  echo "               curl rsync libxcb-cursor0 libxkbcommon-x11-0 libegl1 python3-xlib"
 fi
+
+confirm() {
+  local answer
+  [[ -t 0 ]] || return 1
+  read -r -p "$1 [o/N] " answer || return 1
+  [[ "${answer,,}" == "o" || "${answer,,}" == "oui" || "${answer,,}" == "y" || "${answer,,}" == "yes" ]]
+}
 
 mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$DESKTOP_DIR" "$CONFIG_DIR" "$ICON_DIR"
 
@@ -106,6 +113,34 @@ if [[ ! -f "$CONFIG_DIR/config.yaml" ]]; then
   echo "    Config créée : $CONFIG_DIR/config.yaml"
 fi
 
+echo "==> Vérification d'Ollama"
+if ! command -v ollama >/dev/null 2>&1; then
+  echo "    Ollama n'est pas installé."
+  if confirm "    Installer Ollama avec l'installateur officiel ?"; then
+    if command -v curl >/dev/null 2>&1; then
+      if ! curl -fsSL https://ollama.com/install.sh | sh; then
+        echo "    Échec de l'installation Ollama. Installez-le manuellement depuis https://ollama.com/download."
+      fi
+    else
+      echo "    curl est requis. Installez-le avec : sudo apt install curl"
+    fi
+  fi
+fi
+
+if command -v ollama >/dev/null 2>&1; then
+  if curl -fsS --connect-timeout 2 --max-time 3 \
+    "http://localhost:11434/api/tags" -o /dev/null; then
+    if confirm "    Télécharger le modèle principal llama3.2:3b ?"; then
+      ollama pull llama3.2:3b || echo "    Échec du téléchargement llama3.2:3b ; relancez : ollama pull llama3.2:3b"
+    fi
+    if confirm "    Télécharger aussi le modèle léger llama3.2:1b ?"; then
+      ollama pull llama3.2:1b || echo "    Échec du téléchargement llama3.2:1b ; relancez : ollama pull llama3.2:1b"
+    fi
+  else
+    echo "    Le service Ollama ne répond pas. Démarrez-le, puis exécutez ollama pull llama3.2:3b."
+  fi
+fi
+
 if command -v update-desktop-database &>/dev/null; then
   update-desktop-database "$DESKTOP_DIR" 2>/dev/null || true
 fi
@@ -124,10 +159,9 @@ echo "    Lancer Nook :"
 echo "      • Menu des applications → « Nook »"
 echo "      • Ou : nook"
 echo ""
-echo "    Prérequis : Ollama installé avec au moins un modèle (ollama pull llama3.2)"
+echo "    Ollama : ollama serve (si le service ne démarre pas automatiquement)"
 echo ""
-read -r -p "    Démarrer Nook au lancement de la session ? [o/N] " AUTOSTART || true
-if [[ "${AUTOSTART,,}" == "o" || "${AUTOSTART,,}" == "oui" || "${AUTOSTART,,}" == "y" ]]; then
+if confirm "    Démarrer Nook au lancement de la session ?"; then
   mkdir -p "$AUTOSTART_DIR"
   cp "$DESKTOP_DIR/nook.desktop" "$AUTOSTART_DIR/nook.desktop"
   echo "    Autostart activé."
