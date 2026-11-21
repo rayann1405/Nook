@@ -1,157 +1,178 @@
 # Nook
 
-Nook is a local-first desktop AI assistant for Ubuntu, powered by Ollama.
-It combines a lightweight PyQt6 interface with a ReAct agent to interact with local language models.
+Nook is a local-first desktop AI assistant for Linux. It combines a lightweight
+PyQt6 interface with a ReAct agent, local Ollama models, and optional Meta Model
+API access.
 
-Assistant virtuel de bureau **100 % local** pour Ubuntu. Interface ultra-discrète en bas à droite, connectée à [Ollama](http://localhost:11434). **Détection automatique** du modèle installé sur la machine.
+## Before the hackathon
 
-## Stack technique
+- A compact PyQt6 desktop interface with a global shortcut.
+- A basic ReAct agent loop with local command and file tools.
+- Automatic discovery of an installed Ollama chat model.
+- An Ubuntu installer and desktop launcher.
 
-| Composant | Choix |
-|-----------|-------|
-| Langage | Python 3.10+ |
-| UI | PyQt6 (frameless, always-on-top, ~30 Mo RAM) |
-| LLM | Ollama HTTP — modèle détecté automatiquement |
-| Agent | ReAct (Thought → Action → Observation) |
-| Raccourci | pynput — Ctrl+Alt+Espace (configurable) |
+## Built during the hackathon (Oct 26 - Nov 4, 2026)
 
-## Structure
+See the [comparison with the pre-hackathon baseline](https://github.com/rayann1405/Nook/compare/pre-hackathon...hackathon).
 
-```
-Nook/
-├── install.sh               # Installation application Ubuntu
-├── uninstall.sh
-├── config.example.yaml
-├── requirements.txt
-├── assets/nook.svg
-└── nook/
-    ├── main.py
-    ├── config.py            # ~/.config/nook/config.yaml
-    ├── ollama_client.py     # Détection auto du modèle
-    ├── agent.py
-    ├── tools.py
-    ├── hotkey.py
-    └── ui/
-```
+- A local-first router with Auto, Local, and Cloud modes. Auto uses local
+  inference by default, can route explicitly marked hard tasks to Meta, and
+  falls back between providers on failures.
+- RAM-aware Ollama selection (`llama3.2:3b`, or `llama3.2:1b` when available
+  memory is low), bounded context size, and a configurable per-session cloud
+  call cap.
+- Optional Meta Model API chat completions with token streaming and no
+  automatic retry loop.
+- Streaming assistant replies, live provider/model status, visible agent
+  activity, collapsible steps, mode/model controls, a dark-only interface, and
+  a persistent English/French language selector.
+- A redesigned chat panel with styled message bubbles, inline settings, an
+  API-key field that validates the key, and automatic `.env` loading.
+- Offline-friendly `explain_error` and dry-run-first `organize_files` tools.
+- Explicit confirmation before potentially destructive shell commands or
+  file moves; existing destination files are never overwritten.
+- Unit tests for routing, provider fallback and limits, agent confirmations,
+  safety tools, and the Meta HTTP/SSE contract.
+- An installer that checks for Ollama and offers to install it and pull the
+  default 3B and 1B models.
 
-## Installation (application Ubuntu)
+## Requirements
 
-### 1. Prérequis
+- Debian or Ubuntu Linux with Python 3.10+ and a graphical desktop session.
+- Ollama for local inference. Nook can also use the optional Meta Model API.
+- At least one local chat model; `llama3.2:3b` is preferred when enough memory
+  is available, with `llama3.2:1b` as a lighter option.
+
+## Install
+
+Install system packages:
 
 ```bash
 sudo apt update
-sudo apt install -y python3 python3-venv python3-pip \
-    libxcb-cursor0 libxkbcommon-x11-0 libegl1 python3-xlib rsync
-
-# Ollama + au moins un modèle
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull llama3.2   # ou tout autre modèle chat
+sudo apt install -y python3 python3-venv python3-pip curl rsync \
+  libxcb-cursor0 libxkbcommon-x11-0 libegl1 python3-xlib
 ```
 
-### 2. Installer Nook
+Run the interactive installer. It checks for Ollama, offers to install it with
+the official installer, and offers to pull `llama3.2:3b` and `llama3.2:1b`
+when the Ollama service is reachable:
 
 ```bash
-cd Nook
-chmod +x install.sh uninstall.sh
+chmod +x install.sh
 ./install.sh
 ```
 
-L'installateur :
-- copie l'app dans `~/.local/share/nook`
-- crée le lanceur `~/.local/bin/nook`
-- enregistre **Nook** dans le menu des applications Ubuntu
-- crée `~/.config/nook/config.yaml`
-- propose le démarrage automatique à la session
-
-### 3. Lancer
-
-- **Menu des applications** → rechercher **Nook**
-- Ou en ligne de commande : `nook`
-
-Aucune fenêtre de terminal n'est ouverte (`Terminal=false`).
-
-### Désinstallation
+The installer creates a virtual environment and adds Nook to the desktop app
+menu. If Ollama is not running, start it and pull a model:
 
 ```bash
-./uninstall.sh
+ollama serve
+ollama pull llama3.2:3b
 ```
 
----
-
-## Détection automatique du modèle
-
-Au démarrage, Nook interroge Ollama et choisit le modèle sans configuration manuelle :
-
-1. Modèle explicitement défini dans la config / `NOOK_MODEL` (s'il est installé)
-2. Sinon, modèle **actuellement chargé** en mémoire (`/api/ps`)
-3. Sinon, modèle chat **le plus récemment installé** (`/api/tags`)
-
-Les modèles d'embedding (`nomic-embed`, etc.) sont ignorés.
-
-Re-détection automatique toutes les 15 secondes (si Ollama démarre après l'app).
-
-Si Nook affiche **Ollama arrêté**, démarrez le service (`ollama serve`) puis patientez jusqu'à 15 secondes. Si aucun modèle n'est trouvé, installez-en un, par exemple avec `ollama pull llama3.2`.
-
----
-
-## Interface discrète
-
-| État | Description |
-|------|-------------|
-| **Bulle** | Carré sombre 22×22 px, coin bas-droit, au-dessus de la barre des tâches |
-| **Déplié** | Panneau compact 320×420 px, même ancrage |
-| **Ctrl+Alt+Espace** | Afficher / masquer instantanément |
-| **Clic bulle** | Ouvre le chat |
-| **×** | Replie en bulle |
-
-La fenêtre reste **verrouillée en bas à droite** (pas de déplacement).
-
----
-
-## Configuration (`~/.config/nook/config.yaml`)
-
-```yaml
-ollama:
-  base_url: "http://localhost:11434"
-  model: auto          # auto = détection (recommandé)
-  temperature: 0.3
-
-ui:
-  hotkey: "ctrl+alt+space"
-  bubble_opacity: 0.42
-  bubble_size: 22
-  screen_margin: 6
-```
-
-Variables d'environnement optionnelles : `NOOK_MODEL`, `NOOK_OLLAMA_URL`, `NOOK_HOTKEY`.
-
----
-
-## Outils agent
-
-- **`run_command`** — commandes shell non bloquantes
-- **`read_file`** — lecture de fichiers locaux
-- **`list_directory`** — listage de répertoires
-
----
-
-## Dépannage
-
-| Problème | Solution |
-|----------|----------|
-| Ollama hors ligne | `systemctl --user start ollama` ou lancer Ollama |
-| Aucun modèle | `ollama pull llama3.2` |
-| App absente du menu | Vérifier `~/.local/share/applications/nook.desktop` |
-| Raccourci global | Sur Wayland, permissions accessibilité ou session X11 |
-
-## Développement local
+## Run from source
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 python -m nook
 ```
 
-## Licence
+## Use
+
+- Open Nook from the application menu or run `nook`.
+- Click the compact Nook bubble to open the chat. The default global shortcut
+  is `Ctrl+Alt+Space`; press `Escape` to collapse the panel.
+- Open **Settings / Réglages** to choose **Auto**, **Local**, or **Cloud**, pick
+  a local model, toggle cloud/hard-task routing, and choose English or French.
+  The interface uses a dark theme.
+- Paste the Meta API key in **Réglages → Meta API** and click **Enregistrer**.
+  Nook validates the key in the background and stores it in
+  `~/.config/nook/config.yaml` with `chmod 600`.
+- The status pill shows the active provider and model; cloud usage also shows
+  the session count. New conversations can be started with **Nouveau**.
+- Review agent activity in the collapsible steps panel. Potentially destructive
+  shell commands and file moves require explicit confirmation.
+
+On Wayland, desktop policies may prevent global shortcuts or always-on-top
+behavior. Nook displays a notice and remains available from the application menu.
+
+## Configuration
+
+The user configuration is stored at `~/.config/nook/config.yaml`. The installer
+creates it from `config.example.yaml`. Important settings include:
+
+```yaml
+ollama:
+  base_url: "http://localhost:11434"
+  model: auto
+  num_ctx: 2048
+
+router:
+  mode: auto
+  cloud_enabled: true
+  max_cloud_calls: 5
+
+meta:
+  base_url: "https://api.meta.ai/v1"
+  model: "muse-spark-1.3"
+  api_key: ""
+
+ui:
+  language: fr # fr or en
+```
+
+For optional cloud access you can either paste the key in **Réglages** or put it
+in a `.env` file. Nook now loads `.env` automatically from, in order,
+`$NOOK_ENV_FILE`, the install directory, the current directory, and
+`~/.config/nook/.env`. Variables already present in the environment always win:
+
+```bash
+# .env
+META_API_KEY="your-key"
+META_API_BASE_URL="https://api.meta.ai/v1"
+META_MODEL="muse-spark-1.3"
+```
+
+`META_API_KEY`, `META_API_BASE_URL`, and `META_MODEL` can also be exported in the
+shell before launching. Shell commands run by the agent do not inherit Meta API
+key environment variables.
+
+The Meta client uses the configured OpenAI-compatible
+`POST /chat/completions` interface with Bearer authentication. If your Meta
+account uses a different base URL, model name, or authentication setup, update
+the corresponding configuration before enabling Cloud mode. Cloud calls
+require connectivity, an API key, Cloud enabled, and remaining session quota.
+
+## Agent tools
+
+- `run_command` — run a shell command; potentially destructive commands prompt
+  for confirmation.
+- `read_file` and `list_directory` — inspect local files and folders.
+- `explain_error` — summarize a terminal error and suggest a likely fix.
+- `organize_files` — preview a folder organization plan; moves occur only after
+  explicit confirmation and never overwrite existing destinations.
+
+## Architecture
+
+```text
+PyQt6 chat UI
+  -> ReAct agent (bounded steps, confirmations, streamed final answer)
+      -> Model router
+          -> Ollama HTTP API (local-first, RAM-aware model selection)
+          -> Meta Model API (optional, connectivity/key/quota gated)
+      -> Local tools (commands, files, error explanation, organization preview)
+```
+
+## Tests
+
+Run the unit tests without Ollama or internet access:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+## License
 
 MIT
